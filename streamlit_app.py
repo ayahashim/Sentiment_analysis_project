@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 from io import StringIO
 import json
 from datetime import datetime
-from prompt import build_prompt, build_prompt_2
+from prompt import build_prompt
 import plotly.graph_objects as go
 import plotly.express as px
 import sqlite3
