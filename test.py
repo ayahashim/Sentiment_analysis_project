@@ -33,7 +33,7 @@ import pandas as pd
 df = pd.read_csv("./test_data.csv", sep =",")
 
 
-df_result = pd.read_csv("C:/Sentiment_analysis_app/Sentiment_analysis_project/sentiment_analysis_2026-05-27_13-02-17.csv")
+df_result = pd.read_csv("C:/Sentiment_analysis_app/Sentiment_analysis_project/sentiment_analysis_project_output.csv")
 df_result["درجة_الأولوية"] = df_result["درجة_الأولوية"].replace("عاجلة", "حرج")
 
 print(df_result["درجة_الأولوية"].unique(), df["urgency"].unique())
