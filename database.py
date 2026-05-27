@@ -36,7 +36,7 @@ def save_to_database(analysis_result: dict):
             (input_text, classification, sentiment, priority, summary, response_time, analysis_date)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         ''', (
-            analysis_result.get('input', ''),
+            analysis_result.get('النص', ''),
             analysis_result.get('التصنيف', ''),
             analysis_result.get('المشاعر', ''),
             analysis_result.get('درجة_الأولوية', ''),
@@ -71,7 +71,7 @@ def load_from_database() -> list:
         results = []
         for row in rows:
             results.append({
-                'input': row[0],
+                'النص': row[0],
                 'التصنيف': row[1],
                 'المشاعر': row[2],
                 'درجة_الأولوية': row[3],

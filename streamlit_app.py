@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 from io import StringIO
 import json
 from datetime import datetime
-from prompt import build_prompt
+from prompt import build_prompt, validate_and_map_category
 import plotly.graph_objects as go
 import plotly.express as px
 import sqlite3
@@ -265,6 +265,12 @@ st.markdown("""
         background-color: #0d5a3a !important;
         }
             
+        /*Expander styling */
+        div[data-testid="stExpander"] details summary p{
+            font-size: 1rem;
+            font-weight: bold;
+        }
+            
         /* Sentiment colors */
         .sentiment-positive {
             color: #28a745;
@@ -281,6 +287,26 @@ st.markdown("""
             font-weight: bold;
         }
         
+        /* Text area with label styling */
+        .stTextArea {
+            margin-bottom: 4px;
+        }
+
+        .stTextArea label {
+            font-size: 2.1rem !important;
+            font-weight: bold !important;
+            color: #0E543E !important;
+        }
+
+        .stTextArea textarea {
+            font-size: 1.2rem !important;
+            font-weight: bold !important;
+            padding: 12px !important;
+            border-radius: 6px !important;
+            border: 2px solid #0E543E !important;
+        }
+
+
         /* Priority colors */
         .priority-high {
             background-color: #f8d7da;
@@ -316,53 +342,6 @@ st.markdown("""
         }
         
        
-            
-        /* Target only the expander inside .my-expander */
-        .my-expander details summary {
-            font-weight: bold;
-            background-color: #3498db;
-            color: white;
-            border-radius: 8px;
-            padding: 10px;
-        }
-
-        /* Hover effect */
-        .my-expander details summary:hover {
-            background-color: #1f618d;
-            color: yellow;
-        }
-            
-        /* Expander header styling */
-        .stExpander {
-            font-size: 1.3rem !important;
-        }
-
-        .stExpander > summary {
-            font-size: 1.3rem !important;
-            font-weight: bold !important;
-            color: #0E543E !important;
-        }
-
-        .stExpander > summary:hover {
-            background-color: #0f7a22 !important;
-            color: white !important;
-            padding: 10px !important;
-            border-radius: 6px !important;
-            transition: all 0.3s ease !important;
-        }
-
-        /* Expander button styling */
-        button[aria-expanded] {
-            font-size: 1.3rem !important;
-            font-weight: bold !important;
-            color: #0E543E !important;
-        }
-
-        button[aria-expanded]:hover {
-            background-color: #0f7a22 !important;
-            color: white !important;
-        }
-
 
     </style>
 """, unsafe_allow_html=True)
@@ -400,8 +379,9 @@ def get_sentiment_color(sentiment: str) -> str:
 
 def get_priority_color(priority: str) -> str:
     """Return HTML class for priority color"""
-    if "عالي" in priority:
+    if "عالي" in priority or "حرج" in priority or "عاجلة" in priority or "عاجل" in priority:
         return "priority-high"
+
     elif "متوسط" in priority:
         return "priority-medium"
     else:
@@ -410,14 +390,18 @@ def get_priority_color(priority: str) -> str:
 def get_classification_color(classification: str) -> str:
     """Return color for classification badge"""
     colors = {
-        "كهرباء": "#1B8B7F",
-        "مياه": "#00BCD4",
-        "طرق": "#9E9E9E",
-        "صحة": "#F44336",
-        "تعليم": "#9C27B0",
-        "بلدية": "#4CAF50",
-        "خدمات": "#FF9800",
+        "متابعة المعاملات والطلبات لدى الإمارة":  "#1B8B7F", 
+"المركز الشامل وخدمات الجمهور" : "#00BCD4",
+ "الشكاوى والملاحظات المحالة لجهات خدمية" : "#9E9E9E",
+"المحافظات والمراكز والقرى والهجر" : "#5C36F4", 
+"القنوات الرقمية والنماذج الإلكترونية" : "#9C27B0",
+"الاستفسارات عن المتطلبات والإجراءات" : "#4CAF50", 
+"اقتراحات تحسين تجربة المستفيد": "#FF9800",
+"رضا وشكر": "#3CFF00", 
+"حالات عاجلة وحرجة" : "#FF1900"
     }
+    
+     
     for key, color in colors.items():
         if key in classification:
             return color
@@ -429,25 +413,48 @@ def get_category_distribution() -> dict:
         return {}
     
     categories = {
-        "كهرباء": 0,
-        "مياه": 0,
-        "طرق": 0,
-        "صحة": 0,
-        "تعليم": 0,
-        "بلدية": 0,
-        "خدمات": 0,
+       "متابعة المعاملات والطلبات لدى الإمارة": 0.0, 
+"المركز الشامل وخدمات الجمهور" : 0.0, 
+ "الشكاوى والملاحظات المحالة لجهات خدمية" : 0.0,
+"المحافظات والمراكز والقرى والهجر" : 0.0, 
+"القنوات الرقمية والنماذج الإلكترونية" : 0.0,
+"الاستفسارات عن المتطلبات والإجراءات" : 0.0, 
+"اقتراحات تحسين تجربة المستفيد": 0.0,
+"رضا وشكر": 0.0, 
+"حالات عاجلة وحرجة" : 0.0
     }
     
     # Count each category
     for analysis in st.session_state.analysis_history:
         classification = analysis.get("التصنيف", "")
+        if classification is None:
+            classification = ""
+        
+        # Convert to string if it's not already
+        classification = str(classification)
+
         for category in categories.keys():
             if category in classification:
                 categories[category] += 1
                 break
     
     return categories
-
+def clean_json_keys(json_str):
+    """Remove leading/trailing spaces from JSON keys"""
+    data = json_str
+    try:
+        
+        cleaned = {}
+        for key, value in data.items():
+            # Strip spaces from key
+            clean_key = key.strip()
+            # Also strip value if it's a string
+            clean_value = value.strip() if isinstance(value, str) else value
+            cleaned[clean_key] = clean_value
+        return cleaned
+    except:
+        return data
+    
 def analyze_text(text: str, use_ollama: bool = True) -> dict:
     """
     Analyze text and return sentiment analysis with response time
@@ -476,14 +483,25 @@ def analyze_text(text: str, use_ollama: bool = True) -> dict:
                     )
                     analysis_text = response["message"]["content"]
                     analysis_text = json.loads(analysis_text)
-                    
+                    analysis_text = clean_json_keys(analysis_text)  
                     # Calculate response time
                     response_time = time.time() - start_time
+                    category, is_valid, error = validate_and_map_category(
+                    analysis_text.get("التصنيف", ""),
+                    strict=False
+                             )
+            
                     
-                    analysis_text.update({
+                    if not is_valid:
+                            print(f"Warning: {error}")
+                    
+                    
+                    analysis_text.update({ "التصنيف": category, 
+                        "النص": text,
                         "الوقت": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                         "وقت_الاستجابة": f"{response_time:.2f}s"  # Add response time
                     })
+                    
                     
                     st.session_state.analysis_history.append(analysis_text)
                     st.session_state.current_result = analysis_text
@@ -503,6 +521,7 @@ def analyze_text(text: str, use_ollama: bool = True) -> dict:
             response_time = time.time() - start_time
             
             result = {
+                "النص": text,
                 "التصنيف": "غير متاح",
                 "المشاعر": "غير متاح",
                 "درجة_الأولوية": "غير متاح",
@@ -514,7 +533,7 @@ def analyze_text(text: str, use_ollama: bool = True) -> dict:
             st.session_state.analysis_history.append(result)
             st.session_state.current_result = result
             # FORCE RERUN TO UPDATE SIDEBAR
-            st.rerun()
+            # st.rerun()
             return result
     
     except Exception as e:
@@ -566,27 +585,37 @@ def analyze_multiple_complaints(complaints: list) -> list:
             
             analysis_text = response["message"]["content"]
             analysis_result = json.loads(analysis_text)
+            analysis_result = clean_json_keys(analysis_result)  
+
+            category, is_valid, error = validate_and_map_category(
+                    analysis_result.get("التصنيف", ""),
+                    strict=False
+                             )
+            
+                    
+            if not is_valid:
+                    print(f"Warning: {error}")
             
             response_time = time.time() - start_time
             
             # Add metadata
-            analysis_result.update({
-                "input": complaint_text,
+            analysis_result.update({ "التصنيف": category,
+                "النص": complaint_text,
                 "الوقت": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "وقت_الاستجابة": f"{response_time:.2f}s"
             })
-            
+            st.write(analysis_result)
             results.append(analysis_result)
             st.session_state.analysis_history.append(analysis_result)
             st.session_state.current_result = analysis_result
 
             # Save to database
             save_to_database(analysis_result)
-
+            # st.rerun()
         except Exception as e:
             st.warning(f"خطأ في تحليل الشكوى {idx + 1}: {str(e)}")
             results.append({
-                "input": complaint_text,
+                "النص": complaint_text,
                 "التصنيف": "غير متاح",
                 "المشاعر": "غير متاح",
                 "درجة_الأولوية": "غير متاح",
@@ -695,11 +724,13 @@ st.markdown('</div>', unsafe_allow_html=True)
 # TAB 1: TEXT INPUT
 # ============================================
 with tab1:
-    st.markdown(" أدخل نصك للتحليل")
-    
+    # st.markdown(" أدخل نصك للتحليل")
+    label = " أدخل نصك للتحليل"
+    s = f"<p style='font-size:20px; font-weight: bold;'>{label}</p>"
+    st.markdown(s, unsafe_allow_html=True)  
     # Text area
     input_text = st.text_area(
-        "الصق نصك هنا",
+      "",
         placeholder="أدخل النص الذي تريد تحليل مشاعره...",
         height=200,
         key="text_input"
@@ -765,7 +796,7 @@ with tab1:
         
         # Summary
         st.markdown("#### الملخص")
-        st.info(result['الملخص'])
+        st.info(result.get('الملخص',""))
         
         # Download results as JSON
         st.download_button(
@@ -812,7 +843,7 @@ with tab2:
             
                 # Show preview of complaints
                 # Wrapper div with class
-                st.markdown('<div class="my-expander">', unsafe_allow_html=True)
+                st.markdown('<div>', unsafe_allow_html=True)
                 with st.expander("معاينة الشكاوى"):
                     for idx, complaint in enumerate(complaints, 1):
                         st.markdown(f"**الشكوى {idx}:**")
@@ -872,7 +903,7 @@ with tab2:
                                     """, unsafe_allow_html=True)
 
                                 st.markdown(f"**الملخص:** {result.get('الملخص', 'غير متاح')}")
-                                st.markdown(f"**النص الأصلي:** {result.get('input', 'بدون نص')}")
+                                st.markdown(f"**النص الأصلي:** {result.get('النص', 'بدون نص')}")
                         st.markdown("---")
                         st.markdown("### 📥 تحميل النتائج")
                         
@@ -936,7 +967,8 @@ with tab2:
                             """, unsafe_allow_html=True)
                         
                         st.markdown("#### الملخص")
-                        st.info(result['الملخص'])
+                        st.info(result.get('الملخص',""))
+
 
                         with col4:
                             st.markdown(f"""
@@ -996,6 +1028,11 @@ with tab3:
             import pandas as pd
             df = pd.DataFrame(list(sentiments.items()), columns=['المشاعر', 'العدد'])
             st.bar_chart(df.set_index('المشاعر'))
+        else:
+            st.markdown("---")
+            st.markdown("### 📈 سجل التحليلات")
+            st.info("لا توجد بيانات حتى الآن")
+
 
 
 
@@ -1045,13 +1082,60 @@ with tab3:
     st.markdown("---")
     st.markdown("#### تفاصيل التحليلات:")
 
-    if st.session_state.analysis_history:
-        history_df = pd.DataFrame(st.session_state.analysis_history)
+    # if st.session_state.analysis_history:
+    #     history_df = pd.DataFrame(st.session_state.analysis_history)
 
+    #     st.dataframe(
+    #         history_df[['النص','المشاعر', 'درجة_الأولوية', 'التصنيف', 'الوقت']],
+    #         use_container_width=True
+    #     )
+
+
+    if st.session_state.analysis_history:
+        # Create DataFrame with all columns
+        history_df = pd.DataFrame(st.session_state.analysis_history)
+        
+        # Display columns (what user sees in table)
+        display_columns = ['الوقت', 'النص', 'المشاعر', 'درجة_الأولوية', 'التصنيف']
+        
+        # FIX: Prepare FULL export with correct column order
+        export_columns = ['الوقت', 'النص', 'التصنيف', 'المشاعر', 'درجة_الأولوية', 'الملخص', 'وقت_الاستجابة']
+        
+        # Create export DataFrame with all columns
+        export_df = history_df[[col for col in export_columns if col in history_df.columns]].copy()
+        
+        # # Fill missing columns
+        # for col in export_columns:
+        #     if col not in export_df.columns:
+        #         export_df[col] = "غير متاح"
+        
+        # # Fill NaN values
+        # export_df = export_df.fillna("غير متاح")
+        
+        # # Reorder columns
+        # export_df = export_df[export_columns]
+        
+        # Convert to CSV
+        csv_data = export_df.to_csv(index=False, encoding='utf-8-sig')
+        
+        # Display table (without using built-in download)
         st.dataframe(
-            history_df[['المشاعر', 'درجة_الأولوية', 'التصنيف', 'الوقت']],
-            use_container_width=True
+            history_df[display_columns],
+            use_container_width=True,
+            hide_index=True
         )
+        
+        # ADD CUSTOM DOWNLOAD BUTTON (replaces dataframe's button)
+        st.markdown("---")
+        st.download_button(
+            label="📥 تحميل التقرير الكامل (CSV)",
+            data=csv_data,
+            file_name=f"sentiment_analysis_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.csv",
+            mime="text/csv;charset=utf-8",
+            key="download_csv_full"
+        )
+
+
     else:
         st.info("لا توجد بيانات تحليل حتى الآن")
 
@@ -1108,7 +1192,7 @@ with st.sidebar:
         st.markdown("#### التحليلات الأخيرة:")
         for i, analysis in enumerate(reversed(st.session_state.analysis_history)):
             with st.expander(f"التحليل {len(st.session_state.analysis_history) - i}"):
-                st.write(f"**الملخص:** {analysis['الملخص'][:100]}...")
+                st.write(f"**الملخص:** {analysis.get('الملخص', 'النص')[:100]}...")
                 st.write(f"**المشاعر:** {analysis['المشاعر']}")
                 st.write(f"**الوقت:** {analysis['الوقت']}")
     else:
